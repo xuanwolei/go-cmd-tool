@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"text/template"
+	"unicode"
 
 	"github.com/spf13/pflag"
 )
@@ -263,7 +264,10 @@ func findStructMethods(node *ast.File, structName string) ([]MethodInfo, map[str
 
 		// 收集方法信息
 		methodName := funcDecl.Name.Name
-
+		// 跳过非大写字母开头的方法
+		if !unicode.IsUpper(rune(methodName[0])) {
+			continue
+		}
 		// 跟踪方法中使用的类型
 		usedTypes := make(map[string]bool)
 
