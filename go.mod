@@ -1,4 +1,4 @@
-module go-cmd-tool
+module github.com/xuanwolei/go-cmd-tool
 
 go 1.21
 

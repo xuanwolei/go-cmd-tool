@@ -16,7 +16,7 @@
 ## 安装
 
 ```bash
-go install github.com/xuanwolei/gen-interface/cmd/gen-interface@latest
+go install github.com/xuanwolei/go-cmd-tool/cmd/gen-interface@latest
 
 ## 使用方法
 基本用法：
