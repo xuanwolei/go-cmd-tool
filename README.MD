@@ -11,7 +11,10 @@
 - 支持生成 mockgen 指令（用于单元测试）
 - 支持自定义接口命名前缀
 - 支持文件和目录的排除规则
+- 支持文件和目录的包含规则
 - 支持自定义结构体名称匹配模式
+- 智能处理方法参数和返回值
+- 保持原有代码格式和注释风格
 
 ## 安装
 
@@ -34,7 +37,8 @@ gen-interface [flags]
 Flags:
   -s, --src string          源目录路径（必需）
   -d, --dst string          目标目录路径（必需）
-  -e, --exclude string      排除的文件或目录，多个用逗号分隔
+  -i, --include string      包含的文件或目录，多个用逗号分隔
+  -e, --exclude string      排除的文件或目录，多个用逗号分隔，优先级高于include
   -p, --stPattern string    结构体名称匹配的正则表达式（默认 "^.+Dao$"）
   -f, --prefix string       接口前缀（默认 "I"）
   -r, --generateRegister    是否生成实体变量和注册函数（默认 false）
@@ -113,7 +117,7 @@ func RegisterUserDao(i IUserDao) {
 使用 -m 标志可以生成 mockgen 指令：
 
 ```bash
-gen-interface -s ./dao -d ./interfaces -m
+gen-interface -s ./dao -d ./interfaces -m -k../mocks
 ```
 
 将在接口定义前添加：
@@ -121,3 +125,30 @@ gen-interface -s ./dao -d ./interfaces -m
 ```go
 //go:generate mockgen -source=user_dao.go -destination=../mocks/user_dao.go -package=mocks
 ```
+
+### 使用包含和排除规则
+只处理特定文件：
+
+```bash
+gen-interface -s ./dao -d ./interfaces -i "user*.go,order*.go"
+
+```
+
+排除特定文件：
+
+```bash
+gen-interface -s ./dao -d ./interfaces -e "internal/*,test/*"
+
+```
+
+### 自定义结构体匹配
+匹配所有 Service 结尾的结构体：
+
+```bash
+gen-interface -s ./service -d ./interfaces -p "^.+Service$"
+```
+
+## 注意事项
+1. 只会处理公开的方法（首字母大写）
+2. 排除规则优先级高于包含规则
+

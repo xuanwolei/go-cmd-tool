@@ -21,7 +21,8 @@ import (
 var (
 	srcDir           = pflag.StringP("src", "s", "", "源目录路径")
 	dstDir           = pflag.StringP("dst", "d", "", "目标目录路径")
-	excludeStr       = pflag.StringP("exclude", "e", "", "排除的文件或目录，多个用逗号分隔")
+	includeStr       = pflag.StringP("include", "i", "", "包含的文件或目录，多个用逗号分隔")
+	excludeStr       = pflag.StringP("exclude", "e", "", "排除的文件或目录，多个用逗号分隔，优先级高于include")
 	stPattern        = pflag.StringP("stPattern", "p", "^.+Dao$", "结构体名称匹配的正则表达式，默认匹配以Dao结尾的结构体")
 	interfacePrefix  = pflag.StringP("prefix", "f", "I", "接口前缀，默认是 I")
 	generateRegister = pflag.BoolP("generateRegister", "r", false, "是否生成实体变量和注册函数，默认不生成")
@@ -76,6 +77,12 @@ func main() {
 		return
 	}
 
+	//解析包含列表
+	includeList := []string{}
+	if *includeStr != "" {
+		includeList = strings.Split(*includeStr, ",")
+	}
+
 	// 解析排除列表
 	excludeList := []string{}
 	if *excludeStr != "" {
@@ -89,13 +96,13 @@ func main() {
 	}
 
 	// 处理源目录
-	if err := processDirectory(*srcDir, *dstDir, excludeList, structPattern); err != nil {
+	if err := processDirectory(*srcDir, *dstDir, excludeList, includeList, structPattern); err != nil {
 		fmt.Printf("处理目录失败: %v\n", err)
 	}
 }
 
 // 处理目录
-func processDirectory(srcDir, dstDir string, excludeList []string, structPattern *regexp.Regexp) error {
+func processDirectory(srcDir, dstDir string, excludeList, includeList []string, structPattern *regexp.Regexp) error {
 	return filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -128,6 +135,23 @@ func processDirectory(srcDir, dstDir string, excludeList []string, structPattern
 			// 检查是否匹配目录前缀
 			if info.IsDir() && strings.HasPrefix(relPath, exclude) {
 				return filepath.SkipDir
+			}
+		}
+
+		// 如果指定了包含列表，处理包含列表中的文件
+		if len(includeList) > 0 {
+			if !info.IsDir() {
+				fileName := filepath.Base(path)
+				included := false
+				for _, include := range includeList {
+					if matched, _ := filepath.Match(include, fileName); matched {
+						included = true
+						break
+					}
+				}
+				if !included {
+					return nil
+				}
 			}
 		}
 
@@ -281,10 +305,7 @@ func findStructMethods(node *ast.File, structName string) ([]MethodInfo, map[str
 		paramNames := formatParamNames(funcDecl.Type.Params)
 
 		// 提取注释
-		comment := ""
-		if funcDecl.Doc != nil && len(funcDecl.Doc.List) > 0 {
-			comment = strings.TrimSpace(funcDecl.Doc.Text())
-		}
+		comment := formatComment(funcDecl.Doc)
 
 		methods = append(methods, MethodInfo{
 			Name:       methodName,
@@ -327,6 +348,34 @@ func formatFieldList(fieldList *ast.FieldList, usedTypes map[string]bool) string
 	}
 
 	return strings.Join(result, ", ")
+}
+
+// formatComment 格式化函数注释
+func formatComment(doc *ast.CommentGroup) string {
+	if doc == nil || len(doc.List) == 0 {
+		return ""
+	}
+
+	var comment string
+	commentLines := strings.Split(doc.Text(), "\n")
+
+	for i, line := range commentLines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		if !strings.HasPrefix(line, "//") {
+			line = "// " + line
+		}
+
+		if i > 0 {
+			comment += "\n"
+		}
+		comment += line
+	}
+
+	return comment
 }
 
 // 收集表达式中使用的类型
@@ -438,7 +487,7 @@ import (
 // {{.InterfaceName}} 是 {{.Name}} 的接口定义
 {{if .GenerateMock}}//go:generate mockgen -source={{.TargetFileName}} -destination={{.MockPath}}/{{.TargetFileName}} -package=mocks{{end}}
 type {{.InterfaceName}} interface {
-	{{range .Methods}}{{if .Comment}}// {{.Comment}}{{end}}
+	{{range .Methods}}{{if .Comment}}{{.Comment}}{{end}}
 	{{.Name}}({{.Params}}) {{if .Results}}({{.Results}}){{end}}
 	{{end}}
 }
